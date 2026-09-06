@@ -33,33 +33,25 @@
          Drag to orbit, scroll to zoom, shift-drag to pan. Click a unit for details.
          Gold = available per the latest snapshot; green = matches your filters.</p>
     </div>
-    <div class="controls">
-      <div class="chip-row" id="b-beds">
+    <div class="controls shared-filters">
+      <div class="chip-row f-beds">
         <button class="chip" data-beds="0">Studio</button>
-        <button class="chip is-on" data-beds="1">1 bed</button>
+        <button class="chip" data-beds="1">1 bed</button>
         <button class="chip" data-beds="2">2 bed</button>
       </div>
       <div class="chip-row">
-        <button class="chip" id="b-porch">Porch only</button>
-        <button class="chip" id="b-avail">Available only</button>
-        <button class="chip" id="b-context" hidden>Surroundings</button>
+        <button class="chip f-porch">Porch only</button>
+        <button class="chip f-avail">Available only</button>
         <label class="floor-range">Floors
-          <input type="number" id="b-fmin" min="9" max="20" value="9">–
-          <input type="number" id="b-fmax" min="9" max="20" value="20">
+          <input type="number" class="f-fmin" min="9" max="20" value="9">–
+          <input type="number" class="f-fmax" min="9" max="20" value="20">
         </label>
+        <button class="chip" id="b-context" hidden>Surroundings</button>
       </div>
     </div>
     <div class="scene-wrap">
       <div id="scene"></div>
-      <aside id="unit-panel" hidden>
-        <button class="close" id="unit-panel-close" aria-label="Close details">×</button>
-        <h3 id="up-title"></h3>
-        <p id="up-facts" class="muted"></p>
-        <p id="up-status"></p>
-        <p id="up-confidence" class="muted small"></p>
-        <img id="up-img" alt="" loading="lazy">
-        <img id="up-img2" alt="" loading="lazy">
-      </aside>
+      
     </div>
   </section>
 
@@ -70,12 +62,23 @@
       <p class="muted">The complete roster. Price and availability fill in for units listed
          in the most recent snapshot; everything else shows as not listed.</p>
     </div>
-    <div class="controls">
-      <div class="chip-row">
-        <input type="search" id="u-search" placeholder="Search unit or plan…">
-        <button class="chip" id="u-porch">Porch only</button>
-        <button class="chip" id="u-avail">Available only</button>
+    <div class="controls shared-filters">
+      <div class="chip-row f-beds">
+        <button class="chip" data-beds="0">Studio</button>
+        <button class="chip" data-beds="1">1 bed</button>
+        <button class="chip" data-beds="2">2 bed</button>
       </div>
+      <div class="chip-row">
+        <button class="chip f-porch">Porch only</button>
+        <button class="chip f-avail">Available only</button>
+        <label class="floor-range">Floors
+          <input type="number" class="f-fmin" min="9" max="20" value="9">–
+          <input type="number" class="f-fmax" min="9" max="20" value="20">
+        </label>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="chip-row"><input type="search" id="u-search" placeholder="Search unit or plan…"></div>
     </div>
     <div class="table-wrap">
       <table id="units-table">
@@ -114,12 +117,22 @@
          than one unit priced.</p>
     </div>
 
-    <div class="controls">
-      <div class="chip-row" id="beds-filter">
+    <div class="controls shared-filters">
+      <div class="chip-row f-beds">
         <button class="chip" data-beds="0">Studio</button>
-        <button class="chip is-on" data-beds="1">1 bed</button>
+        <button class="chip" data-beds="1">1 bed</button>
         <button class="chip" data-beds="2">2 bed</button>
       </div>
+      <div class="chip-row">
+        <button class="chip f-porch">Porch only</button>
+        <button class="chip f-avail">Available only</button>
+        <label class="floor-range">Floors
+          <input type="number" class="f-fmin" min="9" max="20" value="9">–
+          <input type="number" class="f-fmax" min="9" max="20" value="20">
+        </label>
+      </div>
+    </div>
+    <div class="controls">
       <div class="chip-row" id="plan-filter"></div>
     </div>
 
@@ -174,6 +187,16 @@
     </div>
 
   </section>
+
+  <aside id="unit-panel" hidden>
+        <button class="close" id="unit-panel-close" aria-label="Close details">×</button>
+        <h3 id="up-title"></h3>
+        <p id="up-facts" class="muted"></p>
+        <p id="up-status"></p>
+        <p id="up-confidence" class="muted small"></p>
+        <img id="up-img" alt="" loading="lazy">
+        <img id="up-img2" alt="" loading="lazy">
+      </aside>
 </main>
 
 <footer class="foot">

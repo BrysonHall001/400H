@@ -271,3 +271,12 @@ td.porch-yes { color: var(--avail); }
 .watch-price { font-size: 17px; font-weight: 600; margin: 2px 0; }
 .watch-price span { font-size: 13px; font-weight: 500; }
 #watchlist .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); }
+
+/* ---------- global detail panel + clickable rows ---------- */
+#unit-panel { position: fixed; top: 96px; right: 18px; z-index: 60; width: 280px;
+  max-height: calc(100vh - 130px); box-shadow: 0 4px 18px rgba(36,49,45,0.12); }
+.row-click { cursor: pointer; }
+#units-table tbody tr.row-click:hover { background: #f2efe6; }
+@media (max-width: 720px) {
+  #unit-panel { position: fixed; left: 12px; right: 12px; width: auto; top: auto; bottom: 12px; max-height: 60vh; }
+}

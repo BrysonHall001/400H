@@ -4,24 +4,25 @@ const state = {
   plans: [],
   planHistory: [],
   unitHistory: [],
-  building: null,          // canonical roster
-  bedsOn: new Set([1]),
-  plansOn: new Set(),
+  building: null,
+  watchlist: null,
+  // shared filters (all tabs)
+  f: { beds: new Set([1]), porch: false, avail: false, fmin: 9, fmax: 20 },
+  plansOn: new Set(),           // tracker-only plan refinement
   sort: { key: "unit", dir: 1 },
+  uSearch: "",
   planChart: null,
   unitChart: null,
   dirty: false,
-  // units-tab filters
-  uSearch: "", uPorch: false, uAvail: false,
-  // building-tab filters
-  bBeds: new Set([1]), bPorch: false, bAvail: false, bFmin: 9, bFmax: 20,
-  bInited: false, bSelected: null,
+  bInited: false,
+  bSelected: null,
 };
 
 const PALETTE = ["#2f6b4f", "#bfa05e", "#4e8a76", "#8a6d2f", "#1f3d33",
                  "#a4b06a", "#6fa28e", "#5b4a1e", "#3e5c53", "#d0b98a"];
 const colorFor = (i) => PALETTE[i % PALETTE.length] || `hsl(${(i * 47) % 360} 35% 40%)`;
 const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => [...document.querySelectorAll(sel)];
 const fmt = (n) => n === null || n === undefined ? "—" : "$" + n.toLocaleString("en-US");
 
 /* ---------------- data loading ---------------- */
@@ -34,15 +35,15 @@ async function loadJSON(path) {
 
 const CACHE_KEY = "400h-unit-history-cache";
 
-function latestSnapshot() {
-  return state.unitHistory[state.unitHistory.length - 1] || null;
-}
+function latestSnapshot() { return state.unitHistory[state.unitHistory.length - 1] || null; }
 function latestByUnit() {
   const snap = latestSnapshot();
   const map = new Map();
   if (snap) for (const u of snap.units) map.set(u.unit, u);
   return map;
 }
+function rosterByUnit() { return new Map(state.building.units.map(u => [u.unit, u])); }
+function planMeta(code) { return state.building.plans[code] || {}; }
 
 async function boot() {
   const [plans, planHist, unitHist, building] = await Promise.all([
@@ -51,11 +52,11 @@ async function boot() {
     loadJSON("data/unit-history.json"),
     loadJSON("data/building.json"),
   ]);
-  state.watchlist = await loadJSON("data/watchlist.json").catch(() => null);
   state.plans = plans.plans;
   state.planHistory = planHist.history;
   state.unitHistory = unitHist.snapshots;
   state.building = building;
+  state.watchlist = await loadJSON("data/watchlist.json").catch(() => null);
 
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "[]");
@@ -69,6 +70,7 @@ async function boot() {
   } catch (_) { /* ignore */ }
 
   buildPlanChips();
+  bindSharedFilters();
   renderAll();
   if (state.dirty) {
     showStatus("Restored an imported snapshot from this browser's cache — save it to data/unit-history.json to make it permanent.", false);
@@ -78,20 +80,59 @@ async function boot() {
 
 /* ---------------- tabs ---------------- */
 
-document.querySelectorAll(".tab").forEach(btn => {
+$$(".tab").forEach(btn => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(b => {
+    $$(".tab").forEach(b => {
       b.classList.toggle("is-active", b === btn);
       b.setAttribute("aria-selected", b === btn);
     });
-    document.querySelectorAll(".panel").forEach(p => p.hidden = true);
+    $$(".panel").forEach(p => p.hidden = true);
     $("#panel-" + btn.dataset.tab).hidden = false;
-    if (btn.dataset.tab === "building") initBuilding();
-    if (btn.dataset.tab === "building" && state.bInited) Building3D.resize();
+    if (btn.dataset.tab === "building") { initBuilding(); if (state.bInited) Building3D.resize(); }
   });
 });
 
-/* ---------------- tracker filters ---------------- */
+/* ---------------- shared filters (all tabs) ---------------- */
+
+function bindSharedFilters() {
+  $$(".f-beds .chip").forEach(chip => chip.addEventListener("click", () => {
+    const n = Number(chip.dataset.beds);
+    if (state.f.beds.has(n)) state.f.beds.delete(n); else state.f.beds.add(n);
+    state.plansOn.clear();
+    renderAll();
+  }));
+  $$(".f-porch").forEach(b => b.addEventListener("click", () => { state.f.porch = !state.f.porch; renderAll(); }));
+  $$(".f-avail").forEach(b => b.addEventListener("click", () => { state.f.avail = !state.f.avail; renderAll(); }));
+  $$(".f-fmin").forEach(i => i.addEventListener("change", () => { state.f.fmin = Number(i.value) || 9; renderAll(); }));
+  $$(".f-fmax").forEach(i => i.addEventListener("change", () => { state.f.fmax = Number(i.value) || 20; renderAll(); }));
+}
+
+function syncSharedFilters() {
+  $$(".f-beds .chip").forEach(c => c.classList.toggle("is-on", state.f.beds.has(Number(c.dataset.beds))));
+  $$(".f-porch").forEach(b => b.classList.toggle("is-on", state.f.porch));
+  $$(".f-avail").forEach(b => b.classList.toggle("is-on", state.f.avail));
+  $$(".f-fmin").forEach(i => { if (Number(i.value) !== state.f.fmin) i.value = state.f.fmin; });
+  $$(".f-fmax").forEach(i => { if (Number(i.value) !== state.f.fmax) i.value = state.f.fmax; });
+}
+
+// unit-level match against shared filters
+function matchesUnit(bu, { ignoreFloor = false, ignoreAvail = false } = {}) {
+  if (state.f.beds.size && !state.f.beds.has(bu.beds)) return false;
+  if (state.f.porch && !bu.porch) return false;
+  if (!ignoreFloor && (bu.floor < state.f.fmin || bu.floor > state.f.fmax)) return false;
+  if (!ignoreAvail && state.f.avail && !latestByUnit().has(bu.unit)) return false;
+  return true;
+}
+
+// plan-level match (floor/avail don't apply to plan-wide advertised prices)
+function matchesPlan(code) {
+  const m = planMeta(code);
+  if (state.f.beds.size && !state.f.beds.has(m.beds)) return false;
+  if (state.f.porch && !m.porch) return false;
+  return true;
+}
+
+/* ---------------- tracker plan chips ---------------- */
 
 function buildPlanChips() {
   const row = $("#plan-filter");
@@ -101,38 +142,26 @@ function buildPlanChips() {
     b.className = "chip";
     b.textContent = p.code;
     b.dataset.plan = p.code;
-    b.dataset.beds = p.beds;
     b.addEventListener("click", () => {
       if (state.plansOn.has(p.code)) state.plansOn.delete(p.code);
       else state.plansOn.add(p.code);
-      renderTracker();
+      renderAll();
     });
     row.appendChild(b);
   });
 }
 
-document.querySelectorAll("#beds-filter .chip").forEach(chip => {
-  chip.addEventListener("click", () => {
-    const n = Number(chip.dataset.beds);
-    if (state.bedsOn.has(n)) state.bedsOn.delete(n); else state.bedsOn.add(n);
-    state.plansOn.clear();
-    renderTracker();
-  });
-});
-
 function visiblePlans() {
-  const byBeds = state.plans.filter(p => state.bedsOn.size === 0 || state.bedsOn.has(p.beds));
-  if (state.plansOn.size === 0) return byBeds.map(p => p.code);
-  return byBeds.filter(p => state.plansOn.has(p.code)).map(p => p.code);
+  const eligible = state.plans.map(p => p.code).filter(matchesPlan);
+  if (state.plansOn.size === 0) return eligible;
+  return eligible.filter(c => state.plansOn.has(c));
 }
 
-function syncChips() {
-  document.querySelectorAll("#beds-filter .chip").forEach(c =>
-    c.classList.toggle("is-on", state.bedsOn.has(Number(c.dataset.beds))));
+function syncPlanChips() {
   const shown = new Set(visiblePlans());
-  document.querySelectorAll("#plan-filter .chip").forEach(c => {
-    const inBeds = state.bedsOn.size === 0 || state.bedsOn.has(Number(c.dataset.beds));
-    c.style.display = inBeds ? "" : "none";
+  $$("#plan-filter .chip").forEach(c => {
+    const eligible = matchesPlan(c.dataset.plan);
+    c.style.display = eligible ? "" : "none";
     c.classList.toggle("is-on", shown.has(c.dataset.plan) && state.plansOn.size > 0);
     c.classList.toggle("is-partial", shown.has(c.dataset.plan) && state.plansOn.size === 0);
   });
@@ -153,12 +182,12 @@ function renderPlanChart() {
     const color = colorFor(colorIdx++);
     const hasBand = maxs.some((v, i) => v !== null && v !== mins[i]);
     if (hasBand) {
-      datasets.push({ label: code + " max", data: maxs, borderColor: color + "55",
+      datasets.push({ label: code + " max", planCode: code, data: maxs, borderColor: color + "55",
         borderDash: [4, 4], borderWidth: 1, pointRadius: 0, spanGaps: true, fill: false, legendHide: true });
-      datasets.push({ label: code, data: mins, borderColor: color, backgroundColor: color + "1f",
+      datasets.push({ label: code, planCode: code, data: mins, borderColor: color, backgroundColor: color + "1f",
         borderWidth: 2, pointRadius: 3, spanGaps: true, fill: "-1" });
     } else {
-      datasets.push({ label: code, data: mins, borderColor: color,
+      datasets.push({ label: code, planCode: code, data: mins, borderColor: color,
         borderWidth: 2, pointRadius: 3, spanGaps: true, fill: false });
     }
   }
@@ -169,10 +198,15 @@ function renderPlanChart() {
     options: {
       maintainAspectRatio: false,
       interaction: { mode: "nearest", intersect: false },
+      onClick: (e, els) => {
+        if (!els.length) return;
+        const code = datasets[els[0].datasetIndex].planCode;
+        if (code) fillPlanPanel(code);
+      },
       scales: { y: { ticks: { callback: v => "$" + v.toLocaleString() } } },
       plugins: {
         legend: { labels: { filter: item => !datasets[item.datasetIndex] || !datasets[item.datasetIndex].legendHide } },
-        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y?.toLocaleString()}` } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y?.toLocaleString()} — click for details` } },
       },
     },
   });
@@ -183,8 +217,7 @@ function unitSeries() {
   for (const snap of state.unitHistory) {
     for (const u of snap.units) {
       if (!series.has(u.unit)) series.set(u.unit, { plan: u.plan, beds: u.beds, points: new Map() });
-      const price = u.total_price ?? u.price;
-      series.get(u.unit).points.set(snap.date, price);
+      series.get(u.unit).points.set(snap.date, u.total_price ?? u.price);
     }
   }
   return series;
@@ -196,13 +229,16 @@ function renderUnitChart() {
   $("#unit-chart").parentElement.style.display = empty ? "none" : "";
   if (empty) { if (state.unitChart) { state.unitChart.destroy(); state.unitChart = null; } return; }
   const dates = state.unitHistory.map(s => s.date);
+  const roster = rosterByUnit();
   const shownPlans = new Set(visiblePlans());
   const datasets = [];
   let i = 0;
   for (const [unit, s] of unitSeries()) {
+    const bu = roster.get(unit);
     if (s.plan && !shownPlans.has(s.plan)) continue;
+    if (bu && !matchesUnit(bu)) continue;
     datasets.push({
-      label: `${unit} (${s.plan || "?"})`,
+      label: `${unit} (${s.plan || "?"})`, unitNum: unit,
       data: dates.map(d => s.points.get(d) ?? null),
       borderColor: colorFor(i++), borderWidth: 2, pointRadius: 3, spanGaps: false, fill: false,
     });
@@ -214,24 +250,30 @@ function renderUnitChart() {
     options: {
       maintainAspectRatio: false,
       interaction: { mode: "nearest", intersect: false },
+      onClick: (e, els) => {
+        if (!els.length) return;
+        const unit = datasets[els[0].datasetIndex].unitNum;
+        const bu = rosterByUnit().get(unit);
+        if (bu) { state.bSelected = unit; fillUnitPanel(bu); if (state.bInited) pushBuildingState(); }
+      },
       scales: { y: { ticks: { callback: v => "$" + v.toLocaleString() } } },
+      plugins: { tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y?.toLocaleString()} — click for details` } } },
     },
   });
 }
 
-/* ---------------- units table (full roster) ---------------- */
+/* ---------------- units table ---------------- */
 
-document.querySelectorAll("#units-table thead th").forEach(th => {
+$$("#units-table thead th").forEach(th => {
   th.addEventListener("click", () => {
     const key = th.dataset.sort;
+    if (!key) return;
     if (state.sort.key === key) state.sort.dir *= -1;
     else state.sort = { key, dir: 1 };
     renderUnitsTable();
   });
 });
 $("#u-search").addEventListener("input", e => { state.uSearch = e.target.value.trim().toUpperCase(); renderUnitsTable(); });
-$("#u-porch").addEventListener("click", e => { state.uPorch = !state.uPorch; e.target.classList.toggle("is-on", state.uPorch); renderUnitsTable(); });
-$("#u-avail").addEventListener("click", e => { state.uAvail = !state.uAvail; e.target.classList.toggle("is-on", state.uAvail); renderUnitsTable(); });
 
 function rosterRows() {
   const live = latestByUnit();
@@ -241,7 +283,7 @@ function rosterRows() {
     const l = live.get(u.unit);
     return {
       unit: u.unit, floor: u.floor, plan: u.plan, beds: u.beds, sqft: u.sqft,
-      porch: u.porch, confidence: u.confidence,
+      porch: u.porch, confidence: u.confidence, _bu: u,
       price: l ? l.price : null,
       total_price: l ? l.total_price : null,
       available_on: l ? l.available_on : null,
@@ -256,10 +298,8 @@ function renderUnitsTable() {
   tbody.innerHTML = "";
   const snap = latestSnapshot();
   $("#units-asof").textContent = snap ? `· prices as of ${snap.date}` : "· no snapshot yet";
-  let rows = rosterRows();
+  let rows = rosterRows().filter(r => matchesUnit(r._bu));
   if (state.uSearch) rows = rows.filter(r => r.unit.includes(state.uSearch) || r.plan.toUpperCase().includes(state.uSearch));
-  if (state.uPorch) rows = rows.filter(r => r.porch);
-  if (state.uAvail) rows = rows.filter(r => r.listed);
   rows.sort((a, b) => {
     const k = state.sort.key;
     const av = a[k] ?? "", bv = b[k] ?? "";
@@ -268,6 +308,7 @@ function renderUnitsTable() {
   });
   for (const r of rows) {
     const tr = document.createElement("tr");
+    tr.className = "row-click";
     tr.innerHTML = `
       <td>${r.unit}</td><td class="num">${r.floor}</td>
       <td>${r.plan}${r.confidence !== "confirmed" ? "<span class='muted'>*</span>" : ""}</td>
@@ -277,23 +318,16 @@ function renderUnitsTable() {
       <td class="num">${fmt(r.price)}</td><td class="num">${fmt(r.total_price)}</td>
       <td class="${r.listed ? "status-avail" : "status-not"}">${r.listed ? (r.available_on || "Listed") : "not listed"}</td>
       <td class="num">${r.dom ?? "—"}</td>`;
+    tr.addEventListener("click", () => { state.bSelected = r.unit; fillUnitPanel(r._bu); if (state.bInited) pushBuildingState(); });
     tbody.appendChild(tr);
   }
 }
 
 /* ---------------- building (3D) ---------------- */
 
-function bFilterFn(u) {
-  if (state.bBeds.size && !state.bBeds.has(u.beds)) return false;
-  if (state.bPorch && !u.porch) return false;
-  if (u.floor < state.bFmin || u.floor > state.bFmax) return false;
-  if (state.bAvail && !latestByUnit().has(u.unit)) return false;
-  return true;
-}
-
 function pushBuildingState() {
   Building3D.applyState({
-    filterFn: bFilterFn,
+    filterFn: bu => matchesUnit(bu),
     availableSet: new Set(latestByUnit().keys()),
     selectedUnit: state.bSelected,
   });
@@ -309,7 +343,6 @@ function initBuilding() {
   });
   pushBuildingState();
 
-  // surrounding streets + buildings (optional file created by the context workflow)
   loadJSON("data/context.json").then(ctx => {
     Building3D.addContext(ctx);
     const chip = $("#b-context");
@@ -321,42 +354,72 @@ function initBuilding() {
       chip.classList.toggle("is-on", on);
       Building3D.setContextVisible(on);
     });
-  }).catch(() => { /* context not fetched yet — building renders alone */ });
+  }).catch(() => {});
+}
 
-  document.querySelectorAll("#b-beds .chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const n = Number(chip.dataset.beds);
-      if (state.bBeds.has(n)) state.bBeds.delete(n); else state.bBeds.add(n);
-      chip.classList.toggle("is-on", state.bBeds.has(n));
-      pushBuildingState();
-    });
-  });
-  $("#b-porch").addEventListener("click", e => { state.bPorch = !state.bPorch; e.target.classList.toggle("is-on", state.bPorch); pushBuildingState(); });
-  $("#b-avail").addEventListener("click", e => { state.bAvail = !state.bAvail; e.target.classList.toggle("is-on", state.bAvail); pushBuildingState(); });
-  $("#b-fmin").addEventListener("change", e => { state.bFmin = Number(e.target.value) || 9; pushBuildingState(); });
-  $("#b-fmax").addEventListener("change", e => { state.bFmax = Number(e.target.value) || 20; pushBuildingState(); });
-  $("#unit-panel-close").addEventListener("click", () => { $("#unit-panel").hidden = true; state.bSelected = null; pushBuildingState(); });
+/* ---------------- detail panel (global) ---------------- */
+
+$("#unit-panel-close").addEventListener("click", () => {
+  $("#unit-panel").hidden = true;
+  state.bSelected = null;
+  if (state.bInited) pushBuildingState();
+});
+
+function setPanelImages(plan) {
+  const img = $("#up-img"), img2 = $("#up-img2");
+  img.src = `assets/floorplans/${plan}.jpg`;
+  img.hidden = false;
+  img.onerror = () => { img.hidden = true; };
+  img2.src = `assets/floorplans/${plan}-2d.jpg`;
+  img2.hidden = false;
+  img2.onerror = () => { img2.hidden = true; };
 }
 
 function fillUnitPanel(u) {
   const live = latestByUnit().get(u.unit);
+  const runs = currentRuns();
+  const snap = latestSnapshot();
   $("#up-title").textContent = `Unit ${u.unit} · ${u.plan}`;
   $("#up-facts").textContent =
     `Floor ${u.floor} · ${u.beds === 0 ? "Studio" : u.beds + " bed"} / ${u.baths} bath · ${u.sqft.toLocaleString()} sq ft · ${u.porch ? "porch" : "no porch"}`;
-  $("#up-status").innerHTML = live
-    ? `<span class="status-avail">Available</span> ${live.available_on || ""} — ${fmt(live.total_price ?? live.price)} ${live.lease_term ? "· " + live.lease_term : ""}`
-    : `<span class="status-not">Not listed in the latest snapshot.</span>`;
+  let status;
+  if (live) {
+    const r = runs.get(u.unit);
+    const dom = r && snap ? dayDiff(r.since, snap.date) : 0;
+    status = `<span class="status-avail">Available</span> ${live.available_on || ""} — ${fmt(live.total_price ?? live.price)}` +
+      `${live.lease_term ? " · " + live.lease_term : ""}` +
+      `${r ? ` · listed ${dom === 0 ? "today" : dom + "d"}` : ""}`;
+  } else {
+    status = `<span class="status-not">Not listed in the latest snapshot.</span>`;
+  }
+  $("#up-status").innerHTML = status;
   $("#up-confidence").textContent = u.confidence === "confirmed" ? ""
     : u.confidence === "inferred"
-      ? "Plan inferred from unit geometry matched to official floorplans; will auto-confirm if this unit is ever listed."
+      ? "Plan inferred from unit geometry matched to official floorplans; auto-confirms if this unit is ever listed."
       : "Low-confidence assignment (one-off floor 9 unit) — treat plan as provisional.";
-  const img = $("#up-img"), img2 = $("#up-img2");
-  img.src = `assets/floorplans/${u.plan}.jpg`;
-  img.hidden = false;
-  img.onerror = () => { img.hidden = true; };
-  img2.src = `assets/floorplans/${u.plan}-2d.jpg`;
-  img2.hidden = false;
-  img2.onerror = () => { img2.hidden = true; };
+  setPanelImages(u.plan);
+  $("#unit-panel").hidden = false;
+}
+
+function fillPlanPanel(code) {
+  const m = planMeta(code);
+  const units = state.building.units.filter(u => u.plan === code);
+  const live = latestByUnit();
+  const listed = units.filter(u => live.has(u.unit));
+  const latestRow = [...state.planHistory].reverse().find(r => r.plan === code && r.status === "priced");
+  $("#up-title").textContent = `Plan ${code}`;
+  $("#up-facts").textContent =
+    `${m.beds === 0 ? "Studio" : m.beds + " bed"} / ${m.baths} bath · ${m.sqft.toLocaleString()} sq ft · ` +
+    `${m.porch ? "porch" : "no porch"} · ${units.length} unit${units.length !== 1 ? "s" : ""} in the building`;
+  $("#up-status").innerHTML = latestRow
+    ? `Advertised ${fmt(latestRow.total_min)}${latestRow.total_max !== latestRow.total_min ? " – " + fmt(latestRow.total_max) : ""}` +
+      `${latestRow.units_left != null ? ` · ${latestRow.units_left} left` : ""}${latestRow.term_months ? ` · ${latestRow.term_months} mo` : ""}` +
+      ` <span class="muted">(${latestRow.date})</span>` +
+      (listed.length ? `<br>Listed now: ${listed.map(u => u.unit).join(", ")}` : "")
+    : `<span class="status-not">No advertised price on record (Contact Us).</span>` +
+      (listed.length ? `<br>Listed now: ${listed.map(u => u.unit).join(", ")}` : "");
+  $("#up-confidence").textContent = "";
+  setPanelImages(code);
   $("#unit-panel").hidden = false;
 }
 
@@ -364,7 +427,6 @@ function fillUnitPanel(u) {
 
 function dayDiff(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
 
-// per unit: current listing run {since, firstPrice, lastPrice} or null if not currently listed
 function currentRuns() {
   const runs = new Map();
   for (const snap of state.unitHistory) {
@@ -404,7 +466,7 @@ function renderWatchlist() {
   const snap = latestSnapshot();
   if (!w) { el.innerHTML = '<div class="empty">No data/watchlist.json found.</div>'; return; }
   if (!snap) { el.innerHTML = '<div class="empty">Watchlist activates with the first unit snapshot.</div>'; return; }
-  const roster = new Map(state.building.units.map(u => [u.unit, u]));
+  const roster = rosterByUnit();
   const runs = currentRuns();
   const matches = [];
   for (const lu of snap.units) {
@@ -428,7 +490,7 @@ function renderWatchlist() {
     const dom = m.run ? dayDiff(m.run.since, snap.date) : 0;
     const delta = m.run && m.run.firstPrice != null && m.price != null ? m.price - m.run.firstPrice : null;
     const card = document.createElement("div");
-    card.className = "watch-card";
+    card.className = "watch-card row-click";
     card.innerHTML = `
       <div class="watch-main"><strong>Unit ${m.lu.unit}</strong> · ${m.bu.plan} · floor ${m.bu.floor} ·
         ${m.bu.sqft.toLocaleString()} sq ft · porch</div>
@@ -436,6 +498,7 @@ function renderWatchlist() {
         ${delta === null || delta === 0 ? "" : `<span class="${delta > 0 ? "delta-pos" : "delta-neg"}">(${delta > 0 ? "+" : "−"}$${Math.abs(delta).toLocaleString()} since listed)</span>`}
       </div>
       <div class="muted">available ${m.lu.available_on || "—"} · listed ${dom === 0 ? "today" : dom + " day" + (dom > 1 ? "s" : "")} ${m.run ? "(since " + m.run.since + ")" : ""}</div>`;
+    card.addEventListener("click", () => { state.bSelected = m.bu.unit; fillUnitPanel(m.bu); if (state.bInited) pushBuildingState(); });
     el.appendChild(card);
   }
 }
@@ -444,7 +507,11 @@ function renderEvents() {
   const tbody = $("#events-table tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
-  const events = listingEvents();
+  const roster = rosterByUnit();
+  const events = listingEvents().filter(e => {
+    const bu = roster.get(e.unit);
+    return !bu || matchesUnit(bu, { ignoreAvail: true });
+  });
   $("#events-empty").hidden = events.length > 0;
   for (const e of events.slice(0, 40)) {
     const tr = document.createElement("tr");
@@ -463,6 +530,7 @@ function renderSpread() {
   const latest = latestSnapshot();
   $("#spread-empty").hidden = !!latest;
   if (!latest) return;
+  const roster = rosterByUnit();
   const planRow = new Map();
   for (const r of state.planHistory) {
     if (r.date > latest.date || r.status !== "priced") continue;
@@ -481,6 +549,8 @@ function renderSpread() {
   const shownPlans = new Set(visiblePlans());
   for (const u of [...latest.units].sort((a, b) => (a.plan || "").localeCompare(b.plan || "") || a.unit.localeCompare(b.unit))) {
     if (u.plan && !shownPlans.has(u.plan)) continue;
+    const bu = roster.get(u.unit);
+    if (bu && !matchesUnit(bu)) continue;
     const pr = u.plan ? planRow.get(u.plan) : null;
     const price = u.total_price ?? u.price;
     const delta = pr && price !== null ? price - pr.total_min : null;
@@ -555,17 +625,14 @@ $("#download-unit-history").addEventListener("click", () => {
 
 /* ---------------- render ---------------- */
 
-function renderTracker() {
-  syncChips();
+function renderAll() {
+  syncSharedFilters();
+  syncPlanChips();
   renderWatchlist();
   renderPlanChart();
   renderUnitChart();
   renderEvents();
   renderSpread();
-}
-
-function renderAll() {
-  renderTracker();
   renderUnitsTable();
   if (state.bInited) {
     const snap = latestSnapshot();
