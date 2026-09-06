@@ -51,6 +51,7 @@ async function boot() {
     loadJSON("data/unit-history.json"),
     loadJSON("data/building.json"),
   ]);
+  state.watchlist = await loadJSON("data/watchlist.json").catch(() => null);
   state.plans = plans.plans;
   state.planHistory = planHist.history;
   state.unitHistory = unitHist.snapshots;
@@ -234,6 +235,8 @@ $("#u-avail").addEventListener("click", e => { state.uAvail = !state.uAvail; e.t
 
 function rosterRows() {
   const live = latestByUnit();
+  const runs = currentRuns();
+  const snap = latestSnapshot();
   return state.building.units.map(u => {
     const l = live.get(u.unit);
     return {
@@ -243,6 +246,7 @@ function rosterRows() {
       total_price: l ? l.total_price : null,
       available_on: l ? l.available_on : null,
       listed: !!l,
+      dom: l && runs.get(u.unit) && snap ? dayDiff(runs.get(u.unit).since, snap.date) : null,
     };
   });
 }
@@ -271,7 +275,8 @@ function renderUnitsTable() {
       <td class="num">${r.sqft.toLocaleString()}</td>
       <td class="${r.porch ? "porch-yes" : ""}">${r.porch ? "Yes" : "—"}</td>
       <td class="num">${fmt(r.price)}</td><td class="num">${fmt(r.total_price)}</td>
-      <td class="${r.listed ? "status-avail" : "status-not"}">${r.listed ? (r.available_on || "Listed") : "not listed"}</td>`;
+      <td class="${r.listed ? "status-avail" : "status-not"}">${r.listed ? (r.available_on || "Listed") : "not listed"}</td>
+      <td class="num">${r.dom ?? "—"}</td>`;
     tbody.appendChild(tr);
   }
 }
@@ -353,6 +358,101 @@ function fillUnitPanel(u) {
   img2.hidden = false;
   img2.onerror = () => { img2.hidden = true; };
   $("#unit-panel").hidden = false;
+}
+
+/* ---------------- listing timelines (DOM, deltas, events) ---------------- */
+
+function dayDiff(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
+
+// per unit: current listing run {since, firstPrice, lastPrice} or null if not currently listed
+function currentRuns() {
+  const runs = new Map();
+  for (const snap of state.unitHistory) {
+    const seen = new Set();
+    for (const u of snap.units) {
+      seen.add(u.unit);
+      const price = u.total_price ?? u.price;
+      const r = runs.get(u.unit);
+      if (!r || r.ended) runs.set(u.unit, { since: snap.date, firstPrice: price, lastPrice: price, ended: false });
+      else { r.lastPrice = price; }
+    }
+    for (const [unit, r] of runs) if (!seen.has(unit)) r.ended = true;
+  }
+  for (const [unit, r] of runs) if (r.ended) runs.delete(unit);
+  return runs;
+}
+
+function listingEvents() {
+  const events = [];
+  for (let i = 1; i < state.unitHistory.length; i++) {
+    const prev = new Map(state.unitHistory[i - 1].units.map(u => [u.unit, u]));
+    const cur = new Map(state.unitHistory[i].units.map(u => [u.unit, u]));
+    const date = state.unitHistory[i].date;
+    for (const [unit, u] of cur) if (!prev.has(unit))
+      events.push({ date, kind: "listed", unit, plan: u.plan, price: u.total_price ?? u.price });
+    for (const [unit, u] of prev) if (!cur.has(unit))
+      events.push({ date, kind: "delisted", unit, plan: u.plan, price: u.total_price ?? u.price });
+  }
+  return events.reverse();
+}
+
+function renderWatchlist() {
+  const el = $("#watchlist");
+  if (!el) return;
+  el.innerHTML = "";
+  const w = state.watchlist;
+  const snap = latestSnapshot();
+  if (!w) { el.innerHTML = '<div class="empty">No data/watchlist.json found.</div>'; return; }
+  if (!snap) { el.innerHTML = '<div class="empty">Watchlist activates with the first unit snapshot.</div>'; return; }
+  const roster = new Map(state.building.units.map(u => [u.unit, u]));
+  const runs = currentRuns();
+  const matches = [];
+  for (const lu of snap.units) {
+    const bu = roster.get(lu.unit);
+    if (!bu) continue;
+    if (w.beds && !w.beds.includes(bu.beds)) continue;
+    if (w.porch && !bu.porch) continue;
+    if (w.min_floor != null && bu.floor < w.min_floor) continue;
+    if (w.max_floor != null && bu.floor > w.max_floor) continue;
+    if (w.plans && !w.plans.includes(bu.plan)) continue;
+    const price = lu.total_price ?? lu.price;
+    if (w.max_total_price != null && price > w.max_total_price) continue;
+    matches.push({ lu, bu, run: runs.get(lu.unit), price });
+  }
+  if (!matches.length) {
+    el.innerHTML = '<div class="empty">Nothing in your lane is listed right now — which, this far out, is the expected state. The moment something matches, it appears here.</div>';
+    return;
+  }
+  matches.sort((a, b) => b.bu.floor - a.bu.floor);
+  for (const m of matches) {
+    const dom = m.run ? dayDiff(m.run.since, snap.date) : 0;
+    const delta = m.run && m.run.firstPrice != null && m.price != null ? m.price - m.run.firstPrice : null;
+    const card = document.createElement("div");
+    card.className = "watch-card";
+    card.innerHTML = `
+      <div class="watch-main"><strong>Unit ${m.lu.unit}</strong> · ${m.bu.plan} · floor ${m.bu.floor} ·
+        ${m.bu.sqft.toLocaleString()} sq ft · porch</div>
+      <div class="watch-price">${fmt(m.price)}
+        ${delta === null || delta === 0 ? "" : `<span class="${delta > 0 ? "delta-pos" : "delta-neg"}">(${delta > 0 ? "+" : "−"}$${Math.abs(delta).toLocaleString()} since listed)</span>`}
+      </div>
+      <div class="muted">available ${m.lu.available_on || "—"} · listed ${dom === 0 ? "today" : dom + " day" + (dom > 1 ? "s" : "")} ${m.run ? "(since " + m.run.since + ")" : ""}</div>`;
+    el.appendChild(card);
+  }
+}
+
+function renderEvents() {
+  const tbody = $("#events-table tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const events = listingEvents();
+  $("#events-empty").hidden = events.length > 0;
+  for (const e of events.slice(0, 40)) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${e.date}</td>
+      <td class="${e.kind === "listed" ? "status-avail" : "status-not"}">${e.kind}</td>
+      <td>${e.unit}</td><td>${e.plan ?? "—"}</td><td class="num">${fmt(e.price)}</td>`;
+    tbody.appendChild(tr);
+  }
 }
 
 /* ---------------- spread analysis ---------------- */
@@ -457,8 +557,10 @@ $("#download-unit-history").addEventListener("click", () => {
 
 function renderTracker() {
   syncChips();
+  renderWatchlist();
   renderPlanChart();
   renderUnitChart();
+  renderEvents();
   renderSpread();
 }
 

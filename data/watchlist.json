@@ -1,0 +1,9 @@
+{
+  "note": "Your lane. Any listed unit matching ALL criteria gets front-paged on the Tracker tab. Edit freely and commit; null disables a criterion.",
+  "beds": [1],
+  "porch": true,
+  "min_floor": 15,
+  "max_floor": null,
+  "max_total_price": null,
+  "plans": null
+}

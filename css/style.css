@@ -257,3 +257,17 @@ td.porch-yes { color: var(--avail); }
   #scene { height: 440px; }
   #unit-panel { position: static; width: auto; margin-top: 10px; }
 }
+
+/* ---------- watchlist ---------- */
+.watch-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--champagne);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+.watch-main { font-size: 15px; }
+.watch-price { font-size: 17px; font-weight: 600; margin: 2px 0; }
+.watch-price span { font-size: 13px; font-weight: 500; }
+#watchlist .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); }

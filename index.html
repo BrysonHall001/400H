@@ -90,6 +90,7 @@
             <th data-sort="price">Price</th>
             <th data-sort="total_price">Total</th>
             <th data-sort="available_on">Available</th>
+            <th data-sort="dom">Days listed</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -99,6 +100,12 @@
 
   <!-- ============ TRACKER ============ -->
   <section class="panel" id="panel-tracker">
+
+    <div class="panel-head">
+      <h2>Watchlist</h2>
+      <p class="muted">Listed units matching your lane (edit <code>data/watchlist.json</code> to change it).</p>
+    </div>
+    <div id="watchlist"></div>
 
     <div class="panel-head">
       <h2>Per-floorplan price over time</h2>
@@ -141,6 +148,18 @@
          unit prices sit inside (or outside) the advertised range, plus each unit's typical
          day-to-day drift once history accumulates.</p>
     </div>
+    <div class="panel-head">
+      <h2>Availability events</h2>
+      <p class="muted">Every unit that entered or left the listings between snapshots — the building's churn rhythm.</p>
+    </div>
+    <div class="table-wrap">
+      <table id="events-table">
+        <thead><tr><th>Date</th><th>Event</th><th>Unit</th><th>Plan</th><th>Price then</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="events-empty" hidden>Events appear once two or more snapshots exist.</div>
+    </div>
+
     <div class="table-wrap">
       <table id="spread-table">
         <thead>

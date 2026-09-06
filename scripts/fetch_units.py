@@ -2,8 +2,8 @@
 """Fetch per-unit availability + pricing from the Engrain SightMap data feed.
 
 Requires the SIGHTMAP_URL environment variable (set as a GitHub Actions
-repository variable). Skips quietly if unset, so the workflow works
-before you've configured it.
+repository variable once you've copied the URL from DevTools — see README).
+Skips quietly if unset, so the workflow works before you've configured it.
 
 Appends one snapshot per day to data/unit-history.json. Idempotent per day.
 """
@@ -70,9 +70,11 @@ def extract_snapshot(feed: dict, source: str) -> dict:
         plan = plans_by_id.get(u.get("floor_plan_id"), {})
         floor = int(num[:-2]) if num[:-2].isdigit() else None
         stack = num[-2:] if len(num) >= 3 else None
+        # price: numeric field confirmed in live feed; display string as fallback
         price = u.get("price")
         if not isinstance(price, (int, float)):
             price = money(u.get("display_price"))
+        # total_price is [min, max] in the live feed
         tp = u.get("total_price")
         if isinstance(tp, list) and tp:
             total = int(tp[0])
@@ -106,6 +108,40 @@ def append_snapshot(snapshot: dict) -> None:
     HISTORY_PATH.write_text(json.dumps(doc, indent=2) + "\n")
 
 
+def reconcile_building(snapshot: dict) -> None:
+    """Cross-check each listed unit's plan against building.json.
+    Upgrades matching 'inferred'/'low' assignments to 'confirmed'; logs contradictions."""
+    bpath = ROOT / "data" / "building.json"
+    if not bpath.exists():
+        return
+    building = json.loads(bpath.read_text())
+    by_unit = {u["unit"]: u for u in building["units"]}
+    upgraded, conflicts = [], []
+    for lu in snapshot["units"]:
+        bu = by_unit.get(lu["unit"])
+        if not bu or not lu.get("plan"):
+            continue
+        if bu["plan"] == lu["plan"]:
+            if bu.get("confidence") != "confirmed":
+                bu["confidence"] = "confirmed"
+                upgraded.append(lu["unit"])
+        else:
+            conflicts.append({"unit": lu["unit"], "roster_plan": bu["plan"],
+                              "feed_plan": lu["plan"], "date": snapshot["date"]})
+    if conflicts:
+        cpath = ROOT / "data" / "plan-conflicts.json"
+        log = json.loads(cpath.read_text()) if cpath.exists() else {"conflicts": []}
+        known = {(c["unit"], c["feed_plan"]) for c in log["conflicts"]}
+        for c in conflicts:
+            if (c["unit"], c["feed_plan"]) not in known:
+                log["conflicts"].append(c)
+        cpath.write_text(json.dumps(log, indent=1) + "\n")
+        print(f"PLAN CONFLICTS: {[c['unit'] for c in conflicts]} - roster disagrees with feed; see data/plan-conflicts.json", file=sys.stderr)
+    if upgraded:
+        bpath.write_text(json.dumps(building, separators=(",", ":")) + "\n")
+        print(f"auto-confirmed plans for: {', '.join(upgraded)}")
+
+
 def main() -> int:
     url = os.environ.get("SIGHTMAP_URL", "").strip()
     if not url:
@@ -118,6 +154,7 @@ def main() -> int:
         print("Feed returned zero units - check SIGHTMAP_URL.", file=sys.stderr)
         return 1
     append_snapshot(snapshot)
+    reconcile_building(snapshot)
     print(f"{snapshot['date']}: recorded {len(snapshot['units'])} available units.")
     return 0
 
