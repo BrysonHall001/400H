@@ -2,8 +2,8 @@
 """Fetch per-unit availability + pricing from the Engrain SightMap data feed.
 
 Requires the SIGHTMAP_URL environment variable (set as a GitHub Actions
-repository variable once you've copied the URL from DevTools — see README).
-Skips quietly if unset, so the workflow works before you've configured it.
+repository variable). Skips quietly if unset, so the workflow works
+before you've configured it.
 
 Appends one snapshot per day to data/unit-history.json. Idempotent per day.
 """
@@ -31,7 +31,7 @@ def money(s):
 
 
 def plan_name(raw):
-    """floor_plans[].name is itself JSON-encoded, e.g. '"A04"' or '{"en":"A04"}'."""
+    """floor_plans[].name is JSON-encoded, e.g. '{"name":"U4","provider_id":"21"}' or '"A04"'."""
     if raw is None:
         return None
     try:
@@ -39,8 +39,19 @@ def plan_name(raw):
     except (TypeError, ValueError):
         parsed = raw
     if isinstance(parsed, dict):
-        parsed = next(iter(parsed.values()), None)
-    return str(parsed).strip() if parsed is not None else None
+        parsed = parsed.get("name") or next(iter(parsed.values()), None)
+    if parsed is None:
+        return None
+    return normalize_plan(str(parsed).strip())
+
+
+def normalize_plan(code):
+    """SightMap uses 'U4'/'B5'/'S1'; the floorplans page uses 'U04'/'B05'/'S01'.
+    Normalize to the zero-padded form so the two records join."""
+    m = re.fullmatch(r"([A-Za-z]+)\s*(\d+)", code or "")
+    if not m:
+        return code
+    return m.group(1).upper() + m.group(2).zfill(2)
 
 
 def extract_snapshot(feed: dict, source: str) -> dict:
@@ -59,6 +70,14 @@ def extract_snapshot(feed: dict, source: str) -> dict:
         plan = plans_by_id.get(u.get("floor_plan_id"), {})
         floor = int(num[:-2]) if num[:-2].isdigit() else None
         stack = num[-2:] if len(num) >= 3 else None
+        price = u.get("price")
+        if not isinstance(price, (int, float)):
+            price = money(u.get("display_price"))
+        tp = u.get("total_price")
+        if isinstance(tp, list) and tp:
+            total = int(tp[0])
+        else:
+            total = money(u.get("total_display_price"))
         units.append({
             "unit": num,
             "floor": floor,
@@ -66,9 +85,10 @@ def extract_snapshot(feed: dict, source: str) -> dict:
             "plan": plan.get("name"),
             "beds": plan.get("beds"),
             "sqft": money(u.get("area")),
-            "price": money(u.get("display_price")),
-            "total_price": money(u.get("total_display_price")),
-            "available_on": u.get("display_available_on"),
+            "price": int(price) if isinstance(price, (int, float)) else None,
+            "total_price": total,
+            "available_on": u.get("available_on") or u.get("display_available_on"),
+            "lease_term": u.get("display_lease_term"),
         })
     units.sort(key=lambda x: x["unit"])
     return {

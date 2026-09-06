@@ -10,13 +10,23 @@ const HAR = (() => {
     return parseInt(digits.split(".")[0].replace(/,/g, ""), 10);
   }
 
-  // floor_plans[].name is itself JSON-encoded, e.g. '"A04"' or '{"en":"A04"}'
+  // floor_plans[].name is JSON-encoded, e.g. '{"name":"U4","provider_id":"21"}' or '"A04"'
   function planName(raw) {
     if (raw === null || raw === undefined) return null;
     let parsed = raw;
     try { parsed = JSON.parse(raw); } catch (_) { /* already plain */ }
-    if (parsed && typeof parsed === "object") parsed = Object.values(parsed)[0];
-    return parsed === null || parsed === undefined ? null : String(parsed).trim();
+    if (parsed && typeof parsed === "object") {
+      parsed = parsed.name !== undefined ? parsed.name : Object.values(parsed)[0];
+    }
+    if (parsed === null || parsed === undefined) return null;
+    return normalizePlan(String(parsed).trim());
+  }
+
+  // SightMap uses 'U4'/'B5'; the floorplans page uses 'U04'/'B05'. Zero-pad to join them.
+  function normalizePlan(code) {
+    const m = /^([A-Za-z]+)\s*(\d+)$/.exec(code || "");
+    if (!m) return code;
+    return m[1].toUpperCase() + m[2].padStart(2, "0");
   }
 
   function looksLikeFeed(obj) {
@@ -60,6 +70,10 @@ const HAR = (() => {
       const num = String(u.unit_number || "").trim();
       const floorPart = num.slice(0, -2);
       const plan = plansById[u.floor_plan_id] || {};
+      let price = typeof u.price === "number" ? u.price : moneyToInt(u.display_price);
+      let total = Array.isArray(u.total_price) && u.total_price.length
+        ? Math.trunc(u.total_price[0])
+        : moneyToInt(u.total_display_price);
       return {
         unit: num,
         floor: /^\d+$/.test(floorPart) ? parseInt(floorPart, 10) : null,
@@ -67,9 +81,10 @@ const HAR = (() => {
         plan: plan.name || null,
         beds: plan.beds !== undefined ? plan.beds : null,
         sqft: moneyToInt(u.area),
-        price: moneyToInt(u.display_price),
-        total_price: moneyToInt(u.total_display_price),
-        available_on: u.display_available_on || null,
+        price: typeof price === "number" ? Math.trunc(price) : null,
+        total_price: total,
+        available_on: u.available_on || u.display_available_on || null,
+        lease_term: u.display_lease_term || null,
       };
     }).sort((a, b) => a.unit.localeCompare(b.unit));
     return { date, source, units };
