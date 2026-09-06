@@ -1,23 +1,26 @@
 /* app.js — 400H unit tracker */
 
 const state = {
-  plans: [],            // static metadata
-  planHistory: [],      // rows {date, plan, status, total_min, ...}
-  unitHistory: [],      // snapshots [{date, source, units:[...]}]
+  plans: [],
+  planHistory: [],
+  unitHistory: [],
+  building: null,          // canonical roster
   bedsOn: new Set([1]),
-  plansOn: new Set(),   // plan codes explicitly toggled; empty = all within beds filter
+  plansOn: new Set(),
   sort: { key: "unit", dir: 1 },
   planChart: null,
   unitChart: null,
-  dirty: false,         // imported data not yet saved to file
+  dirty: false,
+  // units-tab filters
+  uSearch: "", uPorch: false, uAvail: false,
+  // building-tab filters
+  bBeds: new Set([1]), bPorch: false, bAvail: false, bFmin: 9, bFmax: 20,
+  bInited: false, bSelected: null,
 };
 
-/* Green/champagne ramp; falls back to generated hues past its length. */
 const PALETTE = ["#2f6b4f", "#bfa05e", "#4e8a76", "#8a6d2f", "#1f3d33",
                  "#a4b06a", "#6fa28e", "#5b4a1e", "#3e5c53", "#d0b98a"];
-const colorFor = (i) => PALETTE[i % PALETTE.length] ||
-  `hsl(${(i * 47) % 360} 35% 40%)`;
-
+const colorFor = (i) => PALETTE[i % PALETTE.length] || `hsl(${(i * 47) % 360} 35% 40%)`;
 const $ = (sel) => document.querySelector(sel);
 const fmt = (n) => n === null || n === undefined ? "—" : "$" + n.toLocaleString("en-US");
 
@@ -31,17 +34,28 @@ async function loadJSON(path) {
 
 const CACHE_KEY = "400h-unit-history-cache";
 
+function latestSnapshot() {
+  return state.unitHistory[state.unitHistory.length - 1] || null;
+}
+function latestByUnit() {
+  const snap = latestSnapshot();
+  const map = new Map();
+  if (snap) for (const u of snap.units) map.set(u.unit, u);
+  return map;
+}
+
 async function boot() {
-  const [plans, planHist, unitHist] = await Promise.all([
+  const [plans, planHist, unitHist, building] = await Promise.all([
     loadJSON("data/plans.json"),
     loadJSON("data/plan-history.json"),
     loadJSON("data/unit-history.json"),
+    loadJSON("data/building.json"),
   ]);
   state.plans = plans.plans;
   state.planHistory = planHist.history;
   state.unitHistory = unitHist.snapshots;
+  state.building = building;
 
-  // Merge any imports cached before they were saved to the repo file.
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "[]");
     for (const snap of cached) {
@@ -51,7 +65,7 @@ async function boot() {
       }
     }
     state.unitHistory.sort((a, b) => a.date.localeCompare(b.date));
-  } catch (_) { /* cache unreadable — ignore */ }
+  } catch (_) { /* ignore */ }
 
   buildPlanChips();
   renderAll();
@@ -71,10 +85,12 @@ document.querySelectorAll(".tab").forEach(btn => {
     });
     document.querySelectorAll(".panel").forEach(p => p.hidden = true);
     $("#panel-" + btn.dataset.tab).hidden = false;
+    if (btn.dataset.tab === "building") initBuilding();
+    if (btn.dataset.tab === "building" && state.bInited) Building3D.resize();
   });
 });
 
-/* ---------------- filters ---------------- */
+/* ---------------- tracker filters ---------------- */
 
 function buildPlanChips() {
   const row = $("#plan-filter");
@@ -88,7 +104,7 @@ function buildPlanChips() {
     b.addEventListener("click", () => {
       if (state.plansOn.has(p.code)) state.plansOn.delete(p.code);
       else state.plansOn.add(p.code);
-      renderAll();
+      renderTracker();
     });
     row.appendChild(b);
   });
@@ -98,8 +114,8 @@ document.querySelectorAll("#beds-filter .chip").forEach(chip => {
   chip.addEventListener("click", () => {
     const n = Number(chip.dataset.beds);
     if (state.bedsOn.has(n)) state.bedsOn.delete(n); else state.bedsOn.add(n);
-    state.plansOn.clear(); // beds change resets per-plan picks
-    renderAll();
+    state.plansOn.clear();
+    renderTracker();
   });
 });
 
@@ -121,18 +137,15 @@ function syncChips() {
   });
 }
 
-/* ---------------- plan chart ---------------- */
+/* ---------------- charts ---------------- */
 
 function renderPlanChart() {
   const dates = [...new Set(state.planHistory.map(r => r.date))].sort();
   const shown = visiblePlans();
   const datasets = [];
   let colorIdx = 0;
-
   for (const code of shown) {
-    const rows = new Map(state.planHistory
-      .filter(r => r.plan === code)
-      .map(r => [r.date, r]));
+    const rows = new Map(state.planHistory.filter(r => r.plan === code).map(r => [r.date, r]));
     const mins = dates.map(d => rows.get(d)?.status === "priced" ? rows.get(d).total_min : null);
     const maxs = dates.map(d => rows.get(d)?.status === "priced" ? rows.get(d).total_max : null);
     if (mins.every(v => v === null)) { colorIdx++; continue; }
@@ -140,17 +153,14 @@ function renderPlanChart() {
     const hasBand = maxs.some((v, i) => v !== null && v !== mins[i]);
     if (hasBand) {
       datasets.push({ label: code + " max", data: maxs, borderColor: color + "55",
-        borderDash: [4, 4], borderWidth: 1, pointRadius: 0, spanGaps: true,
-        fill: false, legendHide: true });
-      datasets.push({ label: code, data: mins, borderColor: color,
-        backgroundColor: color + "1f", borderWidth: 2, pointRadius: 3,
-        spanGaps: true, fill: "-1" });
+        borderDash: [4, 4], borderWidth: 1, pointRadius: 0, spanGaps: true, fill: false, legendHide: true });
+      datasets.push({ label: code, data: mins, borderColor: color, backgroundColor: color + "1f",
+        borderWidth: 2, pointRadius: 3, spanGaps: true, fill: "-1" });
     } else {
       datasets.push({ label: code, data: mins, borderColor: color,
         borderWidth: 2, pointRadius: 3, spanGaps: true, fill: false });
     }
   }
-
   if (state.planChart) state.planChart.destroy();
   state.planChart = new Chart($("#plan-chart"), {
     type: "line",
@@ -160,23 +170,19 @@ function renderPlanChart() {
       interaction: { mode: "nearest", intersect: false },
       scales: { y: { ticks: { callback: v => "$" + v.toLocaleString() } } },
       plugins: {
-        legend: { labels: { filter: item =>
-          !datasets[item.datasetIndex] || !datasets[item.datasetIndex].legendHide } },
-        tooltip: { callbacks: { label: ctx =>
-          `${ctx.dataset.label}: $${ctx.parsed.y?.toLocaleString()}` } },
+        legend: { labels: { filter: item => !datasets[item.datasetIndex] || !datasets[item.datasetIndex].legendHide } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y?.toLocaleString()}` } },
       },
     },
   });
 }
 
-/* ---------------- unit chart ---------------- */
-
 function unitSeries() {
-  const series = new Map(); // unit -> {plan, beds, points: Map(date->price)}
+  const series = new Map();
   for (const snap of state.unitHistory) {
     for (const u of snap.units) {
       if (!series.has(u.unit)) series.set(u.unit, { plan: u.plan, beds: u.beds, points: new Map() });
-      const price = u.total_price !== null && u.total_price !== undefined ? u.total_price : u.price;
+      const price = u.total_price ?? u.price;
       series.get(u.unit).points.set(snap.date, price);
     }
   }
@@ -188,7 +194,6 @@ function renderUnitChart() {
   $("#unit-chart-empty").hidden = !empty;
   $("#unit-chart").parentElement.style.display = empty ? "none" : "";
   if (empty) { if (state.unitChart) { state.unitChart.destroy(); state.unitChart = null; } return; }
-
   const dates = state.unitHistory.map(s => s.date);
   const shownPlans = new Set(visiblePlans());
   const datasets = [];
@@ -198,8 +203,7 @@ function renderUnitChart() {
     datasets.push({
       label: `${unit} (${s.plan || "?"})`,
       data: dates.map(d => s.points.get(d) ?? null),
-      borderColor: colorFor(i++), borderWidth: 2, pointRadius: 3,
-      spanGaps: false, fill: false,
+      borderColor: colorFor(i++), borderWidth: 2, pointRadius: 3, spanGaps: false, fill: false,
     });
   }
   if (state.unitChart) state.unitChart.destroy();
@@ -214,7 +218,7 @@ function renderUnitChart() {
   });
 }
 
-/* ---------------- units table ---------------- */
+/* ---------------- units table (full roster) ---------------- */
 
 document.querySelectorAll("#units-table thead th").forEach(th => {
   th.addEventListener("click", () => {
@@ -224,33 +228,117 @@ document.querySelectorAll("#units-table thead th").forEach(th => {
     renderUnitsTable();
   });
 });
+$("#u-search").addEventListener("input", e => { state.uSearch = e.target.value.trim().toUpperCase(); renderUnitsTable(); });
+$("#u-porch").addEventListener("click", e => { state.uPorch = !state.uPorch; e.target.classList.toggle("is-on", state.uPorch); renderUnitsTable(); });
+$("#u-avail").addEventListener("click", e => { state.uAvail = !state.uAvail; e.target.classList.toggle("is-on", state.uAvail); renderUnitsTable(); });
+
+function rosterRows() {
+  const live = latestByUnit();
+  return state.building.units.map(u => {
+    const l = live.get(u.unit);
+    return {
+      unit: u.unit, floor: u.floor, plan: u.plan, beds: u.beds, sqft: u.sqft,
+      porch: u.porch, confidence: u.confidence,
+      price: l ? l.price : null,
+      total_price: l ? l.total_price : null,
+      available_on: l ? l.available_on : null,
+      listed: !!l,
+    };
+  });
+}
 
 function renderUnitsTable() {
   const tbody = $("#units-table tbody");
   tbody.innerHTML = "";
-  const latest = state.unitHistory[state.unitHistory.length - 1];
-  $("#units-empty").hidden = !!latest;
-  $("#units-asof").textContent = latest ? `as of ${latest.date} (${latest.source})` : "";
-  $("#building-availability-note").textContent = latest
-    ? `Latest snapshot: ${latest.units.length} units available as of ${latest.date}.` : "";
-  if (!latest) return;
-
-  const rows = [...latest.units].sort((a, b) => {
+  const snap = latestSnapshot();
+  $("#units-asof").textContent = snap ? `· prices as of ${snap.date}` : "· no snapshot yet";
+  let rows = rosterRows();
+  if (state.uSearch) rows = rows.filter(r => r.unit.includes(state.uSearch) || r.plan.toUpperCase().includes(state.uSearch));
+  if (state.uPorch) rows = rows.filter(r => r.porch);
+  if (state.uAvail) rows = rows.filter(r => r.listed);
+  rows.sort((a, b) => {
     const k = state.sort.key;
     const av = a[k] ?? "", bv = b[k] ?? "";
-    const cmp = typeof av === "number" && typeof bv === "number"
-      ? av - bv : String(av).localeCompare(String(bv));
+    const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
     return cmp * state.sort.dir;
   });
-  for (const u of rows) {
+  for (const r of rows) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${u.unit}</td><td class="num">${u.floor ?? "—"}</td><td>${u.plan ?? "—"}</td>
-      <td class="num">${u.beds ?? "—"}</td><td class="num">${u.sqft?.toLocaleString() ?? "—"}</td>
-      <td class="num">${fmt(u.price)}</td><td class="num">${fmt(u.total_price)}</td>
-      <td>${u.available_on ?? "—"}</td>`;
+      <td>${r.unit}</td><td class="num">${r.floor}</td>
+      <td>${r.plan}${r.confidence !== "confirmed" ? "<span class='muted'>*</span>" : ""}</td>
+      <td class="num">${r.beds === 0 ? "St" : r.beds}</td>
+      <td class="num">${r.sqft.toLocaleString()}</td>
+      <td class="${r.porch ? "porch-yes" : ""}">${r.porch ? "Yes" : "—"}</td>
+      <td class="num">${fmt(r.price)}</td><td class="num">${fmt(r.total_price)}</td>
+      <td class="${r.listed ? "status-avail" : "status-not"}">${r.listed ? (r.available_on || "Listed") : "not listed"}</td>`;
     tbody.appendChild(tr);
   }
+}
+
+/* ---------------- building (3D) ---------------- */
+
+function bFilterFn(u) {
+  if (state.bBeds.size && !state.bBeds.has(u.beds)) return false;
+  if (state.bPorch && !u.porch) return false;
+  if (u.floor < state.bFmin || u.floor > state.bFmax) return false;
+  if (state.bAvail && !latestByUnit().has(u.unit)) return false;
+  return true;
+}
+
+function pushBuildingState() {
+  Building3D.applyState({
+    filterFn: bFilterFn,
+    availableSet: new Set(latestByUnit().keys()),
+    selectedUnit: state.bSelected,
+  });
+}
+
+function initBuilding() {
+  if (state.bInited || !state.building) return;
+  state.bInited = true;
+  const snap = latestSnapshot();
+  $("#bldg-asof").textContent = snap ? `· availability as of ${snap.date}` : "";
+  Building3D.init($("#scene"), state.building, {
+    onSelect: unit => { state.bSelected = unit.unit; fillUnitPanel(unit); pushBuildingState(); },
+  });
+  pushBuildingState();
+
+  document.querySelectorAll("#b-beds .chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const n = Number(chip.dataset.beds);
+      if (state.bBeds.has(n)) state.bBeds.delete(n); else state.bBeds.add(n);
+      chip.classList.toggle("is-on", state.bBeds.has(n));
+      pushBuildingState();
+    });
+  });
+  $("#b-porch").addEventListener("click", e => { state.bPorch = !state.bPorch; e.target.classList.toggle("is-on", state.bPorch); pushBuildingState(); });
+  $("#b-avail").addEventListener("click", e => { state.bAvail = !state.bAvail; e.target.classList.toggle("is-on", state.bAvail); pushBuildingState(); });
+  $("#b-fmin").addEventListener("change", e => { state.bFmin = Number(e.target.value) || 9; pushBuildingState(); });
+  $("#b-fmax").addEventListener("change", e => { state.bFmax = Number(e.target.value) || 20; pushBuildingState(); });
+  $("#unit-panel-close").addEventListener("click", () => { $("#unit-panel").hidden = true; state.bSelected = null; pushBuildingState(); });
+}
+
+function fillUnitPanel(u) {
+  const live = latestByUnit().get(u.unit);
+  $("#up-title").textContent = `Unit ${u.unit} · ${u.plan}`;
+  $("#up-facts").textContent =
+    `Floor ${u.floor} · ${u.beds === 0 ? "Studio" : u.beds + " bed"} / ${u.baths} bath · ${u.sqft.toLocaleString()} sq ft · ${u.porch ? "porch" : "no porch"}`;
+  $("#up-status").innerHTML = live
+    ? `<span class="status-avail">Available</span> ${live.available_on || ""} — ${fmt(live.total_price ?? live.price)} ${live.lease_term ? "· " + live.lease_term : ""}`
+    : `<span class="status-not">Not listed in the latest snapshot.</span>`;
+  $("#up-confidence").textContent = u.confidence === "confirmed" ? ""
+    : u.confidence === "inferred"
+      ? "Plan inferred from unit geometry matched to official floorplans; will auto-confirm if this unit is ever listed."
+      : "Low-confidence assignment (one-off floor 9 unit) — treat plan as provisional.";
+  const img = $("#up-img"), img2 = $("#up-img2");
+  img.src = `assets/floorplans/${u.plan}.jpg`;
+  img.hidden = false;
+  img.onerror = () => { img.hidden = true; };
+  img2.src = `assets/floorplans/${u.plan}-2d.jpg`;
+  img2.hidden = false;
+  img2.onerror = () => { img2.hidden = true; };
+  $("#unit-panel").hidden = false;
 }
 
 /* ---------------- spread analysis ---------------- */
@@ -258,19 +346,15 @@ function renderUnitsTable() {
 function renderSpread() {
   const tbody = $("#spread-table tbody");
   tbody.innerHTML = "";
-  const latest = state.unitHistory[state.unitHistory.length - 1];
+  const latest = latestSnapshot();
   $("#spread-empty").hidden = !!latest;
   if (!latest) return;
-
-  // Plan rows on or before the unit snapshot date (most recent per plan).
   const planRow = new Map();
   for (const r of state.planHistory) {
     if (r.date > latest.date || r.status !== "priced") continue;
     const cur = planRow.get(r.plan);
     if (!cur || r.date > cur.date) planRow.set(r.plan, r);
   }
-
-  // Typical drift: mean |day-over-day change| per unit across all snapshots.
   const drift = new Map();
   for (const [unit, s] of unitSeries()) {
     const prices = [...s.points.entries()].sort((a, b) => a[0].localeCompare(b[0]))
@@ -280,7 +364,6 @@ function renderSpread() {
     for (let i = 1; i < prices.length; i++) sum += Math.abs(prices[i] - prices[i - 1]);
     drift.set(unit, Math.round(sum / (prices.length - 1)));
   }
-
   const shownPlans = new Set(visiblePlans());
   for (const u of [...latest.units].sort((a, b) => (a.plan || "").localeCompare(b.plan || "") || a.unit.localeCompare(b.unit))) {
     if (u.plan && !shownPlans.has(u.plan)) continue;
@@ -307,12 +390,8 @@ const drop = $("#drop-zone");
 const fileInput = $("#file-input");
 drop.addEventListener("click", () => fileInput.click());
 drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
-["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => {
-  e.preventDefault(); drop.classList.add("is-over");
-}));
-["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => {
-  e.preventDefault(); drop.classList.remove("is-over");
-}));
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("is-over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("is-over"); }));
 drop.addEventListener("drop", e => { if (e.dataTransfer.files[0]) importFile(e.dataTransfer.files[0]); });
 fileInput.addEventListener("change", () => { if (fileInput.files[0]) importFile(fileInput.files[0]); fileInput.value = ""; });
 
@@ -329,17 +408,15 @@ async function importFile(file) {
     const today = new Date().toISOString().slice(0, 10);
     const { snapshot, sightmapUrl } = HAR.parseDrop(text, today);
     if (snapshot.units.length === 0) throw new Error("Feed parsed but contained zero units.");
-
     const replaced = state.unitHistory.some(s => s.date === snapshot.date);
     state.unitHistory = state.unitHistory.filter(s => s.date !== snapshot.date);
     state.unitHistory.push(snapshot);
     state.unitHistory.sort((a, b) => a.date.localeCompare(b.date));
     state.dirty = true;
     try { localStorage.setItem(CACHE_KEY, JSON.stringify(state.unitHistory)); } catch (_) {}
-
     let msg = `${replaced ? "Replaced" : "Added"} snapshot for ${snapshot.date}: ${snapshot.units.length} units. ` +
       `Click "Save updated unit-history.json" and commit it to keep this permanently.`;
-    if (sightmapUrl) msg += ` SightMap feed URL found (for the daily fetch — see README): ${sightmapUrl}`;
+    if (sightmapUrl) msg += ` SightMap feed URL: ${sightmapUrl}`;
     showStatus(msg, false);
     $("#download-unit-history").hidden = false;
     renderAll();
@@ -364,12 +441,21 @@ $("#download-unit-history").addEventListener("click", () => {
 
 /* ---------------- render ---------------- */
 
-function renderAll() {
+function renderTracker() {
   syncChips();
   renderPlanChart();
   renderUnitChart();
-  renderUnitsTable();
   renderSpread();
+}
+
+function renderAll() {
+  renderTracker();
+  renderUnitsTable();
+  if (state.bInited) {
+    const snap = latestSnapshot();
+    $("#bldg-asof").textContent = snap ? `· availability as of ${snap.date}` : "";
+    pushBuildingState();
+  }
 }
 
 boot().catch(err => {
