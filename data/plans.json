@@ -1,0 +1,25 @@
+{
+  "plans": [
+    { "code": "S01", "beds": 0, "baths": 1, "sqft": 566 },
+    { "code": "U01", "beds": 1, "baths": 1, "sqft": 746 },
+    { "code": "U02", "beds": 1, "baths": 1, "sqft": 618 },
+    { "code": "U03", "beds": 1, "baths": 1, "sqft": 638 },
+    { "code": "U04", "beds": 1, "baths": 1, "sqft": 694 },
+    { "code": "A01", "beds": 1, "baths": 1, "sqft": 691 },
+    { "code": "A02", "beds": 1, "baths": 1, "sqft": 761 },
+    { "code": "A03", "beds": 1, "baths": 1, "sqft": 790 },
+    { "code": "A04", "beds": 1, "baths": 1, "sqft": 759 },
+    { "code": "A05", "beds": 1, "baths": 1, "sqft": 802 },
+    { "code": "A06", "beds": 1, "baths": 1, "sqft": 616 },
+    { "code": "A07", "beds": 1, "baths": 1, "sqft": 756 },
+    { "code": "A08", "beds": 1, "baths": 1, "sqft": 747 },
+    { "code": "B01", "beds": 2, "baths": 2, "sqft": 1066 },
+    { "code": "B02", "beds": 2, "baths": 2, "sqft": 997 },
+    { "code": "B03", "beds": 2, "baths": 2, "sqft": 1039 },
+    { "code": "B04", "beds": 2, "baths": 2, "sqft": 1089 },
+    { "code": "B05", "beds": 2, "baths": 2, "sqft": 1034 },
+    { "code": "B06", "beds": 2, "baths": 2, "sqft": 1098 },
+    { "code": "C01", "beds": 2, "baths": 2, "sqft": 1391 },
+    { "code": "C02", "beds": 2, "baths": 2, "sqft": 1391 }
+  ]
+}

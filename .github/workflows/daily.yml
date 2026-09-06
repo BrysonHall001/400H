@@ -1,0 +1,39 @@
+name: Daily price capture
+
+on:
+  schedule:
+    - cron: "23 11 * * *"   # 11:23 UTC daily (~7:23am ET) — odd minute avoids the top-of-hour rush
+  workflow_dispatch: {}      # lets you run it manually from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Scrape per-plan prices (primary record)
+        run: python scripts/scrape_plans.py
+
+      - name: Fetch per-unit SightMap feed (if configured)
+        env:
+          SIGHTMAP_URL: ${{ vars.SIGHTMAP_URL }}
+        run: python scripts/fetch_units.py
+
+      - name: Commit updated history
+        run: |
+          git config user.name "400h-tracker-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/ debug/ || true
+          git diff --cached --quiet && echo "No changes today." && exit 0
+          git commit -m "Price capture $(date -u +%F)"
+          git push

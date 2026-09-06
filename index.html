@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>400H Unit Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wordmark">400H</div>
+  <div class="masthead-sub">
+    <span class="masthead-title">Unit tracker</span>
+    <span class="masthead-note">9 N Harrington St · floors 9–20 · target: Jan 2028</span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" data-tab="building" role="tab">Building</button>
+    <button class="tab" data-tab="units" role="tab">Units</button>
+    <button class="tab is-active" data-tab="tracker" role="tab" aria-selected="true">Tracker</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ============ BUILDING (Phase 2) ============ -->
+  <section class="panel" id="panel-building" hidden>
+    <div class="placeholder">
+      <h2>3D building — next phase</h2>
+      <p>This tab will hold the clickable 3D model traced from the floor screenshots:
+         every unit on floors 9–20, colored by availability, with sqft, beds, porch,
+         and the floorplan image in a popup. The data layer this page already reads
+         (plans, per-plan history, per-unit snapshots) is what the model will plug into.</p>
+      <p id="building-availability-note" class="muted"></p>
+    </div>
+  </section>
+
+  <!-- ============ UNITS TABLE ============ -->
+  <section class="panel" id="panel-units" hidden>
+    <div class="panel-head">
+      <h2>Available units <span class="muted" id="units-asof"></span></h2>
+      <p class="muted">Per-unit prices from the SightMap Map feed. Only units the building
+         has listed as available appear here; the full all-units table arrives with the 3D model.</p>
+    </div>
+    <div class="table-wrap">
+      <table id="units-table">
+        <thead>
+          <tr>
+            <th data-sort="unit">Unit</th>
+            <th data-sort="floor">Floor</th>
+            <th data-sort="plan">Plan</th>
+            <th data-sort="beds">Beds</th>
+            <th data-sort="sqft">Sq ft</th>
+            <th data-sort="price">Price</th>
+            <th data-sort="total_price">Total price</th>
+            <th data-sort="available_on">Available</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="units-empty" hidden>
+        No per-unit snapshots yet. Drop a HAR file (or SightMap JSON) on the Tracker tab,
+        or set up the daily fetch — see the README.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRACKER ============ -->
+  <section class="panel" id="panel-tracker">
+
+    <div class="panel-head">
+      <h2>Per-floorplan price over time</h2>
+      <p class="muted">Total Monthly Leasing Price from the Floorplans tab of live400h.com —
+         the primary daily record. Shaded band = listed range (min–max) when a plan has more
+         than one unit priced.</p>
+    </div>
+
+    <div class="controls">
+      <div class="chip-row" id="beds-filter">
+        <button class="chip" data-beds="0">Studio</button>
+        <button class="chip is-on" data-beds="1">1 bed</button>
+        <button class="chip" data-beds="2">2 bed</button>
+      </div>
+      <div class="chip-row" id="plan-filter"></div>
+    </div>
+
+    <div class="chart-box"><canvas id="plan-chart"></canvas></div>
+
+    <div class="panel-head">
+      <h2>Per-unit price over time</h2>
+      <p class="muted">Actual listed units from the Map feed — the quiet secondary record.</p>
+    </div>
+    <div class="chart-box"><canvas id="unit-chart"></canvas></div>
+    <div class="empty" id="unit-chart-empty" hidden>
+      No unit snapshots yet — import below or configure the daily fetch.
+    </div>
+
+    <div class="drop" id="drop-zone" tabindex="0">
+      <strong>Drop a HAR file or SightMap JSON here</strong>
+      <span>…or click to choose a file. The snapshot date comes from the capture itself,
+        so importing an older HAR backfills that day.</span>
+      <input type="file" id="file-input" accept=".har,.json" hidden>
+    </div>
+    <div class="import-status" id="import-status" hidden></div>
+
+    <div class="panel-head">
+      <h2>Map vs. floorplan spread</h2>
+      <p class="muted">For each plan on the most recent day with both records: where actual
+         unit prices sit inside (or outside) the advertised range, plus each unit's typical
+         day-to-day drift once history accumulates.</p>
+    </div>
+    <div class="table-wrap">
+      <table id="spread-table">
+        <thead>
+          <tr><th>Plan</th><th>Advertised range</th><th>Unit</th><th>Unit price</th>
+              <th>vs. range min</th><th>Typical drift</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="spread-empty" hidden>
+        Spread analysis appears once at least one per-unit snapshot exists.
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Data: live400h.com floorplans page + Engrain SightMap feed · personal use</span>
+  <button class="ghost" id="download-unit-history" hidden>Save updated unit-history.json</button>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="js/har.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+{
+  "note": "Per-unit price snapshots from the Engrain SightMap feed (Map tab). Each snapshot is one day. Populated by scripts/fetch_units.py (automatic) or by dropping a HAR file / SightMap JSON on the Tracker tab (manual).",
+  "snapshots": []
+}
