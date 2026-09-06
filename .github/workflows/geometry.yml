@@ -1,0 +1,30 @@
+name: Fetch building geometry
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install requests
+      - name: Fetch geometry and floorplan images
+        env:
+          SIGHTMAP_URL: ${{ vars.SIGHTMAP_URL }}
+        run: python scripts/fetch_geometry.py
+      - name: Commit
+        run: |
+          git config user.name "400h-tracker-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/ assets/
+          git diff --cached --quiet && echo "No changes." && exit 0
+          git commit -m "Building geometry + floorplan assets"
+          git push
