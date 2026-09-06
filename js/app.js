@@ -304,6 +304,20 @@ function initBuilding() {
   });
   pushBuildingState();
 
+  // surrounding streets + buildings (optional file created by the context workflow)
+  loadJSON("data/context.json").then(ctx => {
+    Building3D.addContext(ctx);
+    const chip = $("#b-context");
+    chip.hidden = false;
+    chip.classList.add("is-on");
+    let on = true;
+    chip.addEventListener("click", () => {
+      on = !on;
+      chip.classList.toggle("is-on", on);
+      Building3D.setContextVisible(on);
+    });
+  }).catch(() => { /* context not fetched yet — building renders alone */ });
+
   document.querySelectorAll("#b-beds .chip").forEach(chip => {
     chip.addEventListener("click", () => {
       const n = Number(chip.dataset.beds);
