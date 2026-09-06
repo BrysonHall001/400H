@@ -7,7 +7,7 @@ const state = {
   building: null,
   watchlist: null,
   // shared filters (all tabs)
-  f: { beds: new Set([1]), porch: false, avail: false, fmin: 9, fmax: 20 },
+  f: { beds: new Set([1]), porch: false, avail: false, fmin: 9, fmax: 20, facing: new Set() },
   plansOn: new Set(),           // tracker-only plan refinement
   sort: { key: "unit", dir: 1 },
   uSearch: "",
@@ -101,6 +101,11 @@ function bindSharedFilters() {
     state.plansOn.clear();
     renderAll();
   }));
+  $$(".f-facing .chip").forEach(chip => chip.addEventListener("click", () => {
+    const d = chip.dataset.face;
+    if (state.f.facing.has(d)) state.f.facing.delete(d); else state.f.facing.add(d);
+    renderAll();
+  }));
   $$(".f-porch").forEach(b => b.addEventListener("click", () => { state.f.porch = !state.f.porch; renderAll(); }));
   $$(".f-avail").forEach(b => b.addEventListener("click", () => { state.f.avail = !state.f.avail; renderAll(); }));
   $$(".f-fmin").forEach(i => i.addEventListener("change", () => { state.f.fmin = Number(i.value) || 9; renderAll(); }));
@@ -109,6 +114,7 @@ function bindSharedFilters() {
 
 function syncSharedFilters() {
   $$(".f-beds .chip").forEach(c => c.classList.toggle("is-on", state.f.beds.has(Number(c.dataset.beds))));
+  $$(".f-facing .chip").forEach(c => c.classList.toggle("is-on", state.f.facing.has(c.dataset.face)));
   $$(".f-porch").forEach(b => b.classList.toggle("is-on", state.f.porch));
   $$(".f-avail").forEach(b => b.classList.toggle("is-on", state.f.avail));
   $$(".f-fmin").forEach(i => { if (Number(i.value) !== state.f.fmin) i.value = state.f.fmin; });
@@ -119,6 +125,7 @@ function syncSharedFilters() {
 function matchesUnit(bu, { ignoreFloor = false, ignoreAvail = false } = {}) {
   if (state.f.beds.size && !state.f.beds.has(bu.beds)) return false;
   if (state.f.porch && !bu.porch) return false;
+  if (state.f.facing.size && !(bu.facing || "").split("").some(d => state.f.facing.has(d))) return false;
   if (!ignoreFloor && (bu.floor < state.f.fmin || bu.floor > state.f.fmax)) return false;
   if (!ignoreAvail && state.f.avail && !latestByUnit().has(bu.unit)) return false;
   return true;
@@ -283,7 +290,7 @@ function rosterRows() {
     const l = live.get(u.unit);
     return {
       unit: u.unit, floor: u.floor, plan: u.plan, beds: u.beds, sqft: u.sqft,
-      porch: u.porch, confidence: u.confidence, _bu: u,
+      porch: u.porch, facing: u.facing || "—", confidence: u.confidence, _bu: u,
       price: l ? l.price : null,
       total_price: l ? l.total_price : null,
       available_on: l ? l.available_on : null,
@@ -315,6 +322,7 @@ function renderUnitsTable() {
       <td class="num">${r.beds === 0 ? "St" : r.beds}</td>
       <td class="num">${r.sqft.toLocaleString()}</td>
       <td class="${r.porch ? "porch-yes" : ""}">${r.porch ? "Yes" : "—"}</td>
+      <td>${r.facing}</td>
       <td class="num">${fmt(r.price)}</td><td class="num">${fmt(r.total_price)}</td>
       <td class="${r.listed ? "status-avail" : "status-not"}">${r.listed ? (r.available_on || "Listed") : "not listed"}</td>
       <td class="num">${r.dom ?? "—"}</td>`;
@@ -375,6 +383,8 @@ function setPanelImages(plan) {
   img2.onerror = () => { img2.hidden = true; };
 }
 
+const FACE_NAMES = { N: "north", E: "east", S: "south", W: "west" };
+function faceLabel(f) { return f && f !== "-" ? f.split("").map(d => FACE_NAMES[d]).join("/") + "-facing" : "interior"; }
 function fillUnitPanel(u) {
   const live = latestByUnit().get(u.unit);
   const runs = currentRuns();
