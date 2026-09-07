@@ -2,8 +2,8 @@ name: Daily price capture
 
 on:
   schedule:
-    - cron: "23 11 * * *"   # 11:23 UTC daily (~7:23am ET) — odd minute avoids the top-of-hour rush
-  workflow_dispatch: {}      # lets you run it manually from the Actions tab
+    - cron: "23 11 * * *"   # ~7:23am ET (6:23 in winter); GitHub may run it minutes late
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -26,8 +26,10 @@ jobs:
 
       - name: Fetch per-unit SightMap feed (if configured)
         env:
-          SIGHTMAP_URL: ${{ vars.SIGHTMAP_URL }}
-        run: python scripts/fetch_units.py
+          SIGHTMAP_URL: ${{ vars.SIGHTMAP_URL || secrets.SIGHTMAP_URL }}
+        run: |
+          if [ -n "$SIGHTMAP_URL" ]; then echo "SIGHTMAP_URL configured: yes"; else echo "SIGHTMAP_URL configured: NO - unit fetch will skip"; fi
+          python scripts/fetch_units.py
 
       - name: Commit updated history
         run: |
