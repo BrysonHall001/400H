@@ -2760,6 +2760,171 @@
       "date": "2026-09-22",
       "plan": "U04",
       "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "A01",
+      "status": "priced",
+      "total_min": 2231,
+      "total_max": 2231,
+      "units_left": 1,
+      "term_months": 11,
+      "base_min": 2151,
+      "base_max": 2151
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "A02",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "A03",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "A04",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "A05",
+      "status": "priced",
+      "total_min": 2394,
+      "total_max": 2394,
+      "units_left": 1,
+      "term_months": 10,
+      "base_min": 2314,
+      "base_max": 2314
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "A06",
+      "status": "priced",
+      "total_min": 1891,
+      "total_max": 1891,
+      "units_left": 1,
+      "term_months": 14,
+      "base_min": 1811,
+      "base_max": 1811
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "A07",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "A08",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "B01",
+      "status": "priced",
+      "total_min": 3127,
+      "total_max": 3127,
+      "units_left": 1,
+      "term_months": 10,
+      "base_min": 3047,
+      "base_max": 3047
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "B02",
+      "status": "priced",
+      "total_min": 2514,
+      "total_max": 2514,
+      "units_left": 1,
+      "term_months": 14,
+      "base_min": 2434,
+      "base_max": 2434
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "B03",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "B04",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "B05",
+      "status": "priced",
+      "total_min": 2808,
+      "total_max": 3283,
+      "units_left": null,
+      "term_months": 14,
+      "base_min": 2728,
+      "base_max": 3203
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "B06",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "C01",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "C02",
+      "status": "contact"
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "S01",
+      "status": "priced",
+      "total_min": 1673,
+      "total_max": 1750,
+      "units_left": 2,
+      "term_months": 15,
+      "base_min": 1593,
+      "base_max": 1670
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "U01",
+      "status": "priced",
+      "total_min": 1948,
+      "total_max": 1948,
+      "units_left": 1,
+      "term_months": 11,
+      "base_min": 1868,
+      "base_max": 1868
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "U02",
+      "status": "priced",
+      "total_min": 1904,
+      "total_max": 1943,
+      "units_left": 2,
+      "term_months": 12,
+      "base_min": 1824,
+      "base_max": 1863
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "U03",
+      "status": "priced",
+      "total_min": 1656,
+      "total_max": 1656,
+      "units_left": 1,
+      "term_months": 15,
+      "base_min": 1576,
+      "base_max": 1576
+    },
+    {
+      "date": "2026-09-23",
+      "plan": "U04",
+      "status": "contact"
     }
   ]
 }
