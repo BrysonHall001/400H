@@ -8316,6 +8316,144 @@
           "lease_term": "10 Months"
         }
       ]
+    },
+    {
+      "date": "2026-10-24",
+      "source": "api",
+      "units": [
+        {
+          "unit": "1018",
+          "floor": 10,
+          "stack": "18",
+          "plan": "U03",
+          "beds": 1,
+          "sqft": 638,
+          "price": 1691,
+          "total_price": 1771,
+          "available_on": "2026-12-05",
+          "lease_term": "15 Months"
+        },
+        {
+          "unit": "1222",
+          "floor": 12,
+          "stack": "22",
+          "plan": "B01",
+          "beds": 2,
+          "sqft": 1066,
+          "price": 3154,
+          "total_price": 3234,
+          "available_on": "2026-11-29",
+          "lease_term": "10 Months"
+        },
+        {
+          "unit": "1416",
+          "floor": 14,
+          "stack": "16",
+          "plan": "S01",
+          "beds": 0,
+          "sqft": 566,
+          "price": 1499,
+          "total_price": 1579,
+          "available_on": "2026-10-28",
+          "lease_term": "18 Months"
+        },
+        {
+          "unit": "1516",
+          "floor": 15,
+          "stack": "16",
+          "plan": "S01",
+          "beds": 0,
+          "sqft": 566,
+          "price": 1580,
+          "total_price": 1660,
+          "available_on": "2026-10-24",
+          "lease_term": "18 Months"
+        },
+        {
+          "unit": "1519",
+          "floor": 15,
+          "stack": "19",
+          "plan": "A08",
+          "beds": 1,
+          "sqft": 747,
+          "price": 2110,
+          "total_price": 2190,
+          "available_on": "2026-12-18",
+          "lease_term": "15 Months"
+        },
+        {
+          "unit": "1523",
+          "floor": 15,
+          "stack": "23",
+          "plan": "U01",
+          "beds": 1,
+          "sqft": 746,
+          "price": 1979,
+          "total_price": 2059,
+          "available_on": "2026-11-01",
+          "lease_term": "18 Months"
+        },
+        {
+          "unit": "1610",
+          "floor": 16,
+          "stack": "10",
+          "plan": "U03",
+          "beds": 1,
+          "sqft": 638,
+          "price": 1894,
+          "total_price": 1974,
+          "available_on": "2026-10-24",
+          "lease_term": "17 Months"
+        },
+        {
+          "unit": "1613",
+          "floor": 16,
+          "stack": "13",
+          "plan": "U02",
+          "beds": 1,
+          "sqft": 618,
+          "price": 1939,
+          "total_price": 2019,
+          "available_on": "2026-10-24",
+          "lease_term": "17 Months"
+        },
+        {
+          "unit": "1708",
+          "floor": 17,
+          "stack": "08",
+          "plan": "U02",
+          "beds": 1,
+          "sqft": 618,
+          "price": 1974,
+          "total_price": 2054,
+          "available_on": "2026-10-24",
+          "lease_term": "17 Months"
+        },
+        {
+          "unit": "1915",
+          "floor": 19,
+          "stack": "15",
+          "plan": "B04",
+          "beds": 2,
+          "sqft": 1089,
+          "price": 3526,
+          "total_price": 3606,
+          "available_on": "2027-01-03",
+          "lease_term": "18 Months"
+        },
+        {
+          "unit": "2020",
+          "floor": 20,
+          "stack": "20",
+          "plan": "B05",
+          "beds": 2,
+          "sqft": 1034,
+          "price": 3197,
+          "total_price": 3277,
+          "available_on": "2026-11-08",
+          "lease_term": "10 Months"
+        }
+      ]
     }
   ]
 }
