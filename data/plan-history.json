@@ -9435,6 +9435,159 @@
       "date": "2026-11-04",
       "plan": "U04",
       "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "A01",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "A02",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "A03",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "A04",
+      "status": "priced",
+      "total_min": 2392,
+      "total_max": 2392,
+      "units_left": 1,
+      "term_months": 18,
+      "base_min": 2312,
+      "base_max": 2312
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "A05",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "A06",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "A07",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "A08",
+      "status": "priced",
+      "total_min": 1938,
+      "total_max": 2172,
+      "units_left": 2,
+      "term_months": 18,
+      "base_min": 1858,
+      "base_max": 2092
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "B01",
+      "status": "priced",
+      "total_min": 3478,
+      "total_max": 3613,
+      "units_left": 2,
+      "term_months": 18,
+      "base_min": 3398,
+      "base_max": 3533
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "B02",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "B03",
+      "status": "priced",
+      "total_min": 3490,
+      "total_max": 3490,
+      "units_left": 1,
+      "term_months": 18,
+      "base_min": 3410,
+      "base_max": 3410
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "B04",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "B05",
+      "status": "priced",
+      "total_min": 3548,
+      "total_max": 3548,
+      "units_left": 1,
+      "term_months": 10,
+      "base_min": 3468,
+      "base_max": 3468
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "B06",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "C01",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "C02",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "S01",
+      "status": "priced",
+      "total_min": 1579,
+      "total_max": 1660,
+      "units_left": 2,
+      "term_months": 17,
+      "base_min": 1499,
+      "base_max": 1580
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "U01",
+      "status": "contact"
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "U02",
+      "status": "priced",
+      "total_min": 2038,
+      "total_max": 2073,
+      "units_left": 2,
+      "term_months": 16,
+      "base_min": 1958,
+      "base_max": 1993
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "U03",
+      "status": "priced",
+      "total_min": 1791,
+      "total_max": 1993,
+      "units_left": 2,
+      "term_months": 16,
+      "base_min": 1711,
+      "base_max": 1913
+    },
+    {
+      "date": "2026-11-05",
+      "plan": "U04",
+      "status": "contact"
     }
   ]
 }
